@@ -32,7 +32,8 @@ class Mastermind # rubocop:disable Style/Documentation
   def initialize
     @testing = PegSet.new(:code)
     # @guessing = PegSet.new(:guess)
-    p convert_input(:guess, player_input)
+    @newtest = PegSet.new(:code, convert_input(:code, player_input))
+    make_guess(@newtest)
   end
 
   # Should work for both code and guesses
@@ -41,12 +42,14 @@ class Mastermind # rubocop:disable Style/Documentation
     loop do
       puts "Enter the initial of the desired colors. Options are:\nOrange, Yellow, Green, Blue, Purple, Red"
       colors = [gets[0].upcase, gets[0].upcase, gets[0].upcase, gets[0].upcase]
+      @testing.show_colors
       return colors if @testing.valid_code_set?(colors)
 
       puts "That's not a valid combination. Try again."
     end
   end
 
+  # Converts input to arrays for usage in creating pegs
   # Expects symbol and array of single character identifiers
   def convert_input(type, colors = [])
     if type == :key
@@ -54,6 +57,16 @@ class Mastermind # rubocop:disable Style/Documentation
     else
       colors.map { |color| CODE_COLORS.key(color) }
     end
+  end
+
+  # Create new PegSet for guess, using the prior input functions
+  # Expects a PegSet
+  def make_guess(guess_pegset)
+    @testing.check_guess(guess_pegset)
+  end
+
+  # Player turn, take input, make guess, return key PegSet
+  def guess_turn
   end
 end
 
@@ -94,6 +107,7 @@ class PegSet
 
   LENGTH = 4
   TYPES = %i[code guess key].freeze
+  EMPTY = :empty
 
   # Validity check for player input, expects array of 4 strings
   # Sanity checks are handled in the prior code for cleanliness -.-
@@ -128,16 +142,44 @@ class PegSet
   # Modify key pegs
   def change_pegs(colors); end
 
+  # DEBUG : CHANGE/REMOVE IN FINAL
+  def show_colors
+    puts "Here is the current Key set:\n #{@pegs[0].color} #{@pegs[1].color} #{@pegs[2].color} #{@pegs[3].color}"
+  end
+
   # Compare the two, and return a new set
   def check_guess(guess_set)
-    # The guess set should be an array.
+    # The guess set should be an array of symbols,
+    # Obtained using #convert_input.
     # In a loop (each with index):
-    # Compare the Guess Peg with every Code Peg
+    # Compare the Guess Peg with each Code Peg
     # (Using a second each with index)
-    # If the Guess Peg is present, check if it is in the same slot (index)
-    # If it is, add one Black peg. If not, add one White peg.
-    #
+    # If the Guess Peg is present, check if there is one in the same slot (index)
+    #   If there is, add one black peg. If not, add one white peg.
+    #   Then replace the identified Code Peg with a dummy
+    #   To avoid false positives.
     # USE self.class.new to create a new instance of PegSet
+    keys = []
+    code = color_to_arr
+    guess = guess_set.color_to_arr
+    guess.each_with_index do |guess_peg, guess_index|
+      next unless code.include? guess_peg
+
+      if code[guess_index] == guess_peg
+        keys.push(:black)
+      else
+        keys.push(:white)
+      end
+      p keys
+      code[guess_index] = :empty
+    end
+  end
+
+  def color_to_arr
+    result = []
+    @pegs.each { |peg| result.push(peg.color) }
+    puts " result is #{result}"
+    result
   end
 end
 
