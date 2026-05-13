@@ -62,7 +62,8 @@ class Mastermind # rubocop:disable Style/Documentation
   # Create new PegSet for guess, using the prior input functions
   # Expects a PegSet
   def make_guess(guess_pegset)
-    @testing.check_guess(guess_pegset)
+    response = PegSet.new(:key, @testing.check_guess(guess_pegset))
+    response.show_colors
   end
 
   # Player turn, take input, make guess, return key PegSet
@@ -124,7 +125,7 @@ class PegSet
     @type = TYPES.include?(type) ? type : :guess
     @pegs = []
     # Randomize colors if empty
-    if colors.empty?
+    if colors.empty? && type != key
       @pegs.push(CodePeg.new) until @pegs.length == LENGTH
     else
       colors.each do |color|
@@ -132,6 +133,10 @@ class PegSet
       end
     end
     @pegs.each { |c| puts c.color }
+  end
+
+  def key_peg_set(colors)
+    @pegs.push(CodePeg.new(EMPTY)) while @pegs.length < 4
   end
 
   # Auto code generator
@@ -148,7 +153,7 @@ class PegSet
   end
 
   # Compare the two, and return a new set
-  def check_guess(guess_set)
+  def check_guess(guess_set) # rubocop:disable Metrics/MethodLength
     # The guess set should be an array of symbols,
     # Obtained using #convert_input.
     # In a loop (each with index):
@@ -173,6 +178,7 @@ class PegSet
       p keys
       code[guess_index] = :empty
     end
+    keys
   end
 
   def color_to_arr
