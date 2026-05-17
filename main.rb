@@ -29,24 +29,30 @@ KEY_COLORS = {
 }.freeze
 
 class Mastermind # rubocop:disable Style/Documentation
+  TURNS = 12
   def initialize
-    @testing = PegSet.new(:code)
+    @code_pegs = PegSet.new(:code)
+    puts @code_pegs.colors
     # @guessing = PegSet.new(:guess)
-    @newtest = PegSet.new(:code, convert_input(:code, player_input))
-    make_guess(@newtest)
+  end
+
+  # Player turn, take input, make guess, return key PegSet
+  def player_guess
+    colors = []
+    loop do
+      puts "Enter color initials. Options are:\nOrange, Yellow, Green, Blue, Purple, Red"
+      colors = player_input
+      @guess_pegs = PegSet.new(:code, convert_input(:code, colors))
+      @guess_pegs.show_colors(true)
+      return colors if @guess_pegs.valid_code_set?(colors)
+
+      puts "That's not a valid combination. Try again."
+    end
   end
 
   # Should work for both code and guesses
   def player_input
-    colors = []
-    loop do
-      puts "Enter the initial of the desired colors. Options are:\nOrange, Yellow, Green, Blue, Purple, Red"
-      colors = [gets[0].upcase, gets[0].upcase, gets[0].upcase, gets[0].upcase]
-      @testing.show_colors
-      return colors if @testing.valid_code_set?(colors)
-
-      puts "That's not a valid combination. Try again."
-    end
+    [gets[0].upcase, gets[0].upcase, gets[0].upcase, gets[0].upcase]
   end
 
   # Converts input to arrays for usage in creating pegs
@@ -61,13 +67,34 @@ class Mastermind # rubocop:disable Style/Documentation
 
   # Create new PegSet for guess, using the prior input functions
   # Expects a PegSet
-  def make_guess(guess_pegset)
-    response = PegSet.new(:key, @testing.check_guess(guess_pegset))
-    response.show_colors
+  def make_guess
+    @key_pegs = PegSet.new(:key, @code_pegs.check_guess(@guess_pegs))
+    @key_pegs.show_colors
   end
 
-  # Player turn, take input, make guess, return key PegSet
-  def guess_turn
+  def check_win
+    true if @key_pegs.colors.all?(:black)
+  end
+
+  def winner
+    puts "You win! The code was #{@code_pegs.colors}"
+  end
+
+  def loser
+    puts "You ran out of turns. The code was #{@code_pegs.colors}"
+  end
+
+  def game_loop
+    i = 0
+    while i < TURNS
+      player_guess
+      make_guess
+      i += 1
+      if check_win
+        winner
+        break
+      end
+    end
   end
 end
 
@@ -76,7 +103,7 @@ end
 class CodePeg
   attr_reader :color
 
-  COLORS = %i[orange yellow green blue purple pink].freeze
+  COLORS = %i[orange yellow green blue purple red].freeze
   TYPES = %i[code guess].freeze
 
   def initialize(color = nil)
@@ -125,18 +152,18 @@ class PegSet
     @type = TYPES.include?(type) ? type : :guess
     @pegs = []
     # Randomize colors if empty
-    if colors.empty? && type != key
+    if colors.empty? && type != :key
       @pegs.push(CodePeg.new) until @pegs.length == LENGTH
     else
-      colors.each do |color|
-        @pegs.push(CodePeg.new(color))
-      end
+      key_peg_set(colors)
     end
-    @pegs.each { |c| puts c.color }
   end
 
   def key_peg_set(colors)
-    @pegs.push(CodePeg.new(EMPTY)) while @pegs.length < 4
+    colors.each do |color|
+      @pegs.push(CodePeg.new(color))
+    end
+    @pegs.push(CodePeg.new(EMPTY)) while @pegs.length < LENGTH
   end
 
   # Auto code generator
@@ -144,12 +171,15 @@ class PegSet
     Array.new(4, CodePeg.new(:code))
   end
 
-  # Modify key pegs
-  def change_pegs(colors); end
+  def colors
+    [@pegs[0].color, @pegs[1].color, @pegs[2].color, @pegs[3].color]
+  end
 
-  # DEBUG : CHANGE/REMOVE IN FINAL
-  def show_colors
-    puts "Here is the current Key set:\n #{@pegs[0].color} #{@pegs[1].color} #{@pegs[2].color} #{@pegs[3].color}"
+  # Default argument makes most calls cleaner
+  def show_colors(guess = false) # rubocop:disable Style/OptionalBooleanParameter
+    text = guess ? "You guessed: \n" : "Here is the current #{@type} set:\n"
+    puts "#{text} #{@pegs[0].color} #{@pegs[1].color} #{@pegs[2].color} #{@pegs[3].color}"
+    puts @code_pegs
   end
 
   # Compare the two, and return a new set
@@ -163,20 +193,35 @@ class PegSet
     #   If there is, add one black peg. If not, add one white peg.
     #   Then replace the identified Code Peg with a dummy
     #   To avoid false positives.
-    # USE self.class.new to create a new instance of PegSet
     keys = []
     code = color_to_arr
     guess = guess_set.color_to_arr
+    changed = false
+    # This is very inefficient and i know that
+    # but ill be honest im tired of looking at this code
     guess.each_with_index do |guess_peg, guess_index|
       next unless code.include? guess_peg
 
-      if code[guess_index] == guess_peg
+      # Black pegs only
+      code.each_with_index do |code_peg, code_index|
+        changed = false
+        next unless guess_peg == code_peg && guess_index == code_index
+
+        # Add a black peg since it matches
         keys.push(:black)
-      else
-        keys.push(:white)
+        # Remove the peg in question from the list
+        # So it doesn't give false positives
+        code[guess_index] = EMPTY
+        # Let the rest of the code know it changed
+        changed = true
+        break
       end
-      p keys
-      code[guess_index] = :empty
+      next if changed
+
+      # Add white
+      keys.push(:white)
+      # Then remove the matching peg
+      code[code.find_index(guess_peg)] = EMPTY
     end
     keys
   end
@@ -184,13 +229,13 @@ class PegSet
   def color_to_arr
     result = []
     @pegs.each { |peg| result.push(peg.color) }
-    puts " result is #{result}"
     result
   end
 end
 
 def main
-  Mastermind.new
+  game = Mastermind.new
+  game.game_loop
 end
 
 main
