@@ -33,18 +33,18 @@ class Mastermind # rubocop:disable Style/Documentation
   def initialize
     @code_pegs = PegSet.new(:code)
     puts @code_pegs.colors
+    @key_pegs = Array.new(4, :empty)
     # @guessing = PegSet.new(:guess)
   end
 
   # Player turn, take input, make guess, return key PegSet
-  def player_guess
+  def player_colors(type = :code)
     colors = []
     loop do
       puts "Enter color initials. Options are:\nOrange, Yellow, Green, Blue, Purple, Red"
       colors = player_input
-      @guess_pegs = PegSet.new(:code, convert_input(:code, colors))
-      @guess_pegs.show_colors(true)
-      return colors if @guess_pegs.valid_code_set?(colors)
+      peg_set = PegSet.new(type, convert_input(type, colors))
+      return peg_set if peg_set.valid_code_set?(colors)
 
       puts "That's not a valid combination. Try again."
     end
@@ -84,10 +84,10 @@ class Mastermind # rubocop:disable Style/Documentation
     puts "You ran out of turns. The code was #{@code_pegs.colors}"
   end
 
-  def game_loop
+  def guess_loop
     i = 0
     while i < TURNS
-      player_guess
+      @guess_pegs = player_colors
       make_guess
       i += 1
       if check_win
@@ -95,6 +95,61 @@ class Mastermind # rubocop:disable Style/Documentation
         break
       end
     end
+  end
+
+  def start_game
+    puts 'Pick a role, guess or code'
+    role = gets.chomp
+    if role == 'guess'
+      guess_loop
+    elsif role == 'code'
+      @code_pegs = player_colors(:code)
+      cpu_loop
+    end
+  end
+
+  def player_code
+    player_input
+    @code_pegs = PegSet.new(:code, convert_input(:code, colors))
+  end
+
+  def cpu_loop
+    i = 0
+    while i < TURNS
+      guess = cpu_guess
+      i += 1
+      puts 'CPU guessed:'
+      guess.colors
+      make_guess
+    end
+  end
+
+  def cpu_guess
+    # Random guess if @key_pegs is all empty
+    # If not, keep black pegs
+    # And randomize positions of any white pegs
+    return PegSet.new(:guess) if @key_pegs.all?(:empty)
+
+    guess = Array.new(4, EMPTY)
+    confirmed = check_cpu_guess
+    guess.map!.with_index do |_peg, index|
+      confirmed[0][index] unless confirmed[0][index] == EMPTY
+    end
+  end
+
+  # IDGAF
+  def check_cpu_guess # rubocop:disable Metrics/MethodLength
+    black = Array.new(4)
+    white = []
+    cpu_guess = @guess_pegs.color_to_arr
+    cpu_guess.each_with_index do |peg, index|
+      if @key_pegs[index].color == :black
+        black[index] = peg
+      elsif @key_pegs[index].color == :white
+        white[index] = peg
+      end
+    end
+    [black, white]
   end
 end
 
@@ -235,7 +290,7 @@ end
 
 def main
   game = Mastermind.new
-  game.game_loop
+  game.start_game
 end
 
 main
